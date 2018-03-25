@@ -8,7 +8,9 @@ import datetime
 import cv2
 
 confidence_basic=0.5
-display=0
+display = 1
+time_calc = 1
+RPI = 0
 
 fps = 0
 fps_time_new = 0
@@ -17,7 +19,8 @@ i_fps = 3
 i_cycle = 0
 fps_delta = 0
 
-time_fixed = datetime.datetime.now()
+timef = np.zeros(100)
+
 
 # initialize the list of class labels our network was trained to
 # detect, then generate a set of bounding box colors for each class
@@ -29,11 +32,21 @@ COLORS = np.random.uniform(0, 255, size=(len(CLASSES), 3))
 
 # frame dimensions should be sqaure
 PREPROCESS_DIMS = (300, 300)
-DISPLAY_DIMS = (600, 600)
+DISPLAY_DIMS = (640, 480)
 
 # calculate the multiplier needed to scale the bounding boxes
 DISP_MULTIPLIER = DISPLAY_DIMS[0] // PREPROCESS_DIMS[0]
 
+
+def Time_saving(t_number):
+    if time_calc == 1:
+        timef[t_number] = time.time()
+    return 0
+
+def Time_print(t_number):
+    if time_calc == 1:
+        print("time %1s: %1.1f ms" % (t_number, (time.time() - timef[t_number])*1000))
+    return 0
 
 def preprocess_image(input_image):
     # preprocess the image
@@ -130,7 +143,10 @@ font = cv2.FONT_HERSHEY_SIMPLEX
 
 # open a pointer to the video stream thread and allow the buffer to
 print("[INFO] starting the video stream and FPS counter...")
-vs = VideoStream(src=0).start()  # VideoStream(usePiCamera=True).start()
+if RPI==0:
+    vs = VideoStream(src=0).start()
+else:
+    vs = VideoStream(usePiCamera=True).start()
 time.sleep(1)
 
 # loop over frames from the video file stream
@@ -138,28 +154,37 @@ while True:
     try:
         # grab the frame from the threaded video stream
         # make a copy of the frame and resize it for display/video purposes
+        Time_saving(0)
         frame = vs.read()
+        Time_print(0)
+        Time_saving(1)
         image_for_result = frame.copy()
+        Time_print(1)
+        Time_saving(2)
         image_for_result = cv2.resize(image_for_result, DISPLAY_DIMS)
+        Time_print(2)
 
         # use the NCS to acquire predictions
+        Time_saving(3)
         predictions = predict(frame, graph)
+        Time_print(3)
 
         # loop over our predictions
         for (i, pred) in enumerate(predictions):
             # extract prediction data for readability
+            Time_saving(4)
             (pred_class, pred_conf, pred_boxpts) = pred
+            Time_print(4)
 
             # filter out weak detections by ensuring the `confidence`
             # is greater than the minimum confidence
             if pred_conf > confidence_basic:
                 # print prediction to terminal
-                print("[INFO] Prediction #{}: class={}, confidence={}, "
-                      "boxpoints={}".format(i, CLASSES[pred_class], pred_conf,
-                                            pred_boxpts))
+                #print("[INFO] Prediction #{}: class={}, confidence={}, ""boxpoints={}".format(i, CLASSES[pred_class], pred_conf,pred_boxpts))
 
                 # check if we should show the prediction data
                 # on the frame
+                Time_saving(5)
                 if display > 0:
                     # build a label consisting of the predicted class and
                     # associated probability
@@ -178,32 +203,38 @@ while True:
                                   COLORS[pred_class], 2)
                     cv2.putText(image_for_result, label, (startX, y),
                                 cv2.FONT_HERSHEY_SIMPLEX, 1, COLORS[pred_class], 3)
-
+                Time_print(5)
 
         # FPS calculation
+        Time_saving(6)
         fps_time_new = datetime.datetime.now()
-        fps_delta = fps_time_new - fps_time_old
+        fps_delta = (fps_time_new - fps_time_old).total_seconds()
         fps_time_old = fps_time_new
         print("%1.2ffps" % fps)
 
+
         if i_cycle == i_fps:
-            fps = 1 / float(fps_delta.total_seconds())
+            fps = 1 / float(fps_delta)
+            i_cycle = 0
         else:
             i_cycle += 1
 
         cv2.putText(image_for_result, "%1.1f fps" % fps, (10, 30),
                     font, 1, (0, 0, 255), 2, cv2.LINE_AA)
-
+        Time_print(6)
         # check if we should display the frame on the screen
         # with prediction data (you can achieve faster FPS if you
         # do not output to the screen)
         if display > 0:
             # display the frame to the screen
+            Time_saving(7)
             cv2.imshow("Output", image_for_result)
+            Time_print(7)
 
-            #wait esc
-            if cv2.waitKey(1) & 0xFF == 27:
-                break
+        #wait escape
+        if cv2.waitKey(1) & 0xFF == 27:
+            break
+        print("time lap: %1.3f" % fps_delta)
 
     # if "ctrl+c" is pressed in the terminal, break from the loop
     except KeyboardInterrupt:
